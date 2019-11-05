@@ -152,11 +152,23 @@ public:
 class SourceInfo
 {
 public:
+    SourceInfo(
+            const QString &path = {},
+            int compileGroup = -1,
+            int sourceGroup = -1,
+            int backtrace = -1,
+            bool isGenerated = false):
+        path(path),
+        compileGroup(compileGroup),
+        sourceGroup(sourceGroup),
+        backtrace(backtrace),
+        isGenerated(isGenerated)
+    {}
     QString path;
-    int compileGroup = -1;
-    int sourceGroup = -1;
-    int backtrace = -1;
-    bool isGenerated = false;
+    int compileGroup;
+    int sourceGroup;
+    int backtrace;
+    bool isGenerated;
 };
 
 class IncludeInfo
@@ -187,10 +199,20 @@ public:
 class BacktraceNode
 {
 public:
-    int file = -1;
-    int line = -1;
-    int command = -1;
-    int parent = -1;
+    BacktraceNode(
+            int file = -1,
+            int line = -1,
+            int command = -1,
+            int parent = -1):
+        file(file),
+        line(line),
+        command(command),
+        parent(parent)
+    {}
+    int file;
+    int line;
+    int command;
+    int parent;
 };
 
 class BacktraceInfo

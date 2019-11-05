@@ -45,9 +45,19 @@ class Selection
 public:
     struct Element
     {
+        Element(
+                const litehtml::element::ptr element = {},
+                int index = -1,
+                int x = -1):
+            element(element),
+            index(index),
+            x(x)
+        {
+
+        }
         litehtml::element::ptr element;
-        int index = -1;
-        int x = -1;
+        int index;
+        int x;
     };
 
     enum class Mode { Free, Word };
