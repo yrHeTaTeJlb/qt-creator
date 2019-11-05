@@ -1,4 +1,7 @@
 exists($$PWD/litehtml/CMakeLists.txt) {
+    QMAKE_CFLAGS += -std=c11
+    QMAKE_CXXFLAGS += -std=gnu++1y
+
     LH_SRC = $$PWD/litehtml
     GB_SRC = $$PWD/litehtml/src/gumbo
 
