@@ -98,6 +98,7 @@ public:
             r.workingDirectory =
                     target->activeBuildConfiguration()->buildDirectory().toUserOutput();
             r.setCommandLine(cmd);
+            r.environment = target->activeBuildConfiguration()->environment();
             baseDoStart(r, {});
         });
     }

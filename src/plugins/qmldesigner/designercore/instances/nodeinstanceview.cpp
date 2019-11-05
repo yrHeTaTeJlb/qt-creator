@@ -51,6 +51,7 @@
 #include "changeauxiliarycommand.h"
 #include "changebindingscommand.h"
 #include "changeidscommand.h"
+#include "changeselectioncommand.h"
 #include "changenodesourcecommand.h"
 #include "removeinstancescommand.h"
 #include "removepropertiescommand.h"
@@ -69,6 +70,7 @@
 #include "nodeinstanceserverproxy.h"
 
 #include <utils/algorithm.h>
+#include <utils/qtcassert.h>
 
 #include <QUrl>
 #include <QMultiHash>
@@ -215,6 +217,30 @@ void NodeInstanceView::handleCrash()
         emitDocumentMessage(tr("Qt Quick emulation layer crashed."));
 
     emitCustomNotification(QStringLiteral("puppet crashed"));
+}
+
+void NodeInstanceView::startPuppetTransaction()
+{
+    /* We assume no transaction is active. */
+    QTC_ASSERT(!m_puppetTransaction.isValid(), return);
+    m_puppetTransaction = beginRewriterTransaction("NodeInstanceView::PuppetTransaction");
+}
+
+void NodeInstanceView::endPuppetTransaction()
+{
+    /* We assume a transaction is active. */
+    QTC_ASSERT(m_puppetTransaction.isValid(), return);
+
+    /* Committing a transaction should not throw, but if there is
+     * an issue with rewriting we should show an error message, instead
+     * of simply crashing.
+     */
+
+    try {
+        m_puppetTransaction.commit();
+    } catch (Exception &e) {
+        e.showException();
+    }
 }
 
 void NodeInstanceView::restartProcess()
@@ -1048,11 +1074,14 @@ ChangeValuesCommand NodeInstanceView::createChangeValueCommand(const QList<Varia
 {
     QVector<PropertyValueContainer> containerList;
 
+    const bool reflectionFlag = m_puppetTransaction.isValid();
+
     foreach (const VariantProperty &property, propertyList) {
         ModelNode node = property.parentModelNode();
         if (node.isValid() && hasInstanceForModelNode(node)) {
             NodeInstance instance = instanceForModelNode(node);
             PropertyValueContainer container(instance.instanceId(), property.name(), property.value(), property.dynamicTypeName());
+            container.setReflectionFlag(reflectionFlag);
             containerList.append(container);
         }
 
@@ -1107,6 +1136,21 @@ RemoveInstancesCommand NodeInstanceView::createRemoveInstancesCommand(const QLis
     }
 
     return RemoveInstancesCommand(idList);
+}
+
+ChangeSelectionCommand NodeInstanceView::createChangeSelectionCommand(const QList<ModelNode> &nodeList) const
+{
+    QVector<qint32> idList;
+    foreach (const ModelNode &node, nodeList) {
+        if (node.isValid() && hasInstanceForModelNode(node)) {
+            NodeInstance instance = instanceForModelNode(node);
+
+            if (instance.instanceId() >= 0)
+                idList.append(instance.instanceId());
+        }
+    }
+
+    return ChangeSelectionCommand(idList);
 }
 
 RemoveInstancesCommand NodeInstanceView::createRemoveInstancesCommand(const ModelNode &node) const
@@ -1172,6 +1216,29 @@ void NodeInstanceView::valuesChanged(const ValuesChangedCommand &command)
 
     if (!valuePropertyChangeList.isEmpty())
         emitInstancePropertyChange(valuePropertyChangeList);
+}
+
+void NodeInstanceView::valuesModified(const ValuesModifiedCommand &command)
+{
+    if (!model())
+        return;
+
+    if (command.transactionOption == ValuesModifiedCommand::TransactionOption::Start)
+        startPuppetTransaction();
+    else if (command.transactionOption == ValuesModifiedCommand::TransactionOption::End)
+        endPuppetTransaction();
+
+    for (const PropertyValueContainer &container : command.valueChanges()) {
+        if (hasInstanceForId(container.instanceId())) {
+            NodeInstance instance = instanceForId(container.instanceId());
+            if (instance.isValid()) {
+                ModelNode node = instance.modelNode();
+                VariantProperty property = instance.modelNode().variantProperty(container.name());
+                if (property.value() != container.value())
+                    property.setValue(container.value());
+            }
+        }
+    }
 }
 
 void NodeInstanceView::pixmapChanged(const PixmapChangedCommand &command)
@@ -1299,7 +1366,6 @@ void NodeInstanceView::childrenChanged(const ChildrenChangedCommand &command)
      if (!model())
         return;
 
-
     QVector<ModelNode> childNodeVector;
 
     foreach (qint32 instanceId, command.childrenInstances()) {
@@ -1362,6 +1428,21 @@ void NodeInstanceView::sendToken(const QString &token, int number, const QVector
         instanceIdVector.append(node.internalId());
 
     nodeInstanceServer()->token(TokenCommand(token, number, instanceIdVector));
+}
+
+void NodeInstanceView::selectionChanged(const ChangeSelectionCommand &command)
+{
+    clearSelectedModelNodes();
+    foreach (const qint32 &instanceId, command.instanceIds()) {
+        if (hasModelNodeForInternalId(instanceId))
+            selectModelNode(modelNodeForInternalId(instanceId));
+    }
+}
+
+void NodeInstanceView::selectedNodesChanged(const QList<ModelNode> &selectedNodeList,
+                                            const QList<ModelNode> & /*lastSelectedNodeList*/)
+{
+    nodeInstanceServer()->changeSelection(createChangeSelectionCommand(selectedNodeList));
 }
 
 void NodeInstanceView::timerEvent(QTimerEvent *event)

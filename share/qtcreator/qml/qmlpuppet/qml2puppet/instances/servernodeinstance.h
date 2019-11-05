@@ -165,12 +165,16 @@ public:
 
     static bool isSubclassOf(QObject *object, const QByteArray &superTypeName);
 
+    void setModifiedFlag(bool b);
+
 private: // functions
     ServerNodeInstance(const QSharedPointer<Internal::ObjectNodeInstance> &abstractInstance);
 
     void setPropertyVariant(const PropertyName &name, const QVariant &value);
 
     void setPropertyBinding(const PropertyName &name, const QString &expression);
+
+    void setHideInEditor(bool b);
 
     void resetProperty(const PropertyName &name);
     void refreshProperty(const PropertyName &name);

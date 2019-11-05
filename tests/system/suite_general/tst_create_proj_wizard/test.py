@@ -62,7 +62,8 @@ def main():
             template = template.replace(".", "\\.")
             # skip non-configurable
             if template not in ["Qt Quick UI Prototype", "Auto Test Project",  # FIXME
-                                "Qt for Python - Empty", "Qt for Python - Window"]:
+                                "Qt for Python - Empty", "Qt for Python - Window",
+                                "Qt Quick 2 Extension Plugin"]:
                 availableProjectTypes.append({category:template})
     safeClickButton("Cancel")
     for current in availableProjectTypes:
@@ -93,7 +94,7 @@ def main():
 
 def verifyKitCheckboxes(kits, displayedPlatforms):
     waitForObject("{type='QLabel' unnamed='1' visible='1' text='Kit Selection'}")
-    availableCheckboxes = frozenset(filter(visibleCheckBoxExists, kits.keys()))
+    availableCheckboxes = frozenset(filter(enabledCheckBoxExists, kits.keys()))
     # verification whether expected, found and configured match
 
     expectedShownKits = availableCheckboxes.intersection(displayedPlatforms)
@@ -132,6 +133,8 @@ def handleBuildSystemVerifyKits(category, template, kits, displayedPlatforms,
         clickButton(waitForObject(":Next_QPushButton"))
         if specialHandlingFunc:
             specialHandlingFunc(displayedPlatforms, *args)
+        if not ('Plain C' in template):
+            __createProjectHandleTranslationSelection__()
         verifyKitCheckboxes(kits, displayedPlatforms)
         safeClickButton("Cancel")
         if counter < len(availableBuildSystems) - 1:

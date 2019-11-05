@@ -54,7 +54,7 @@ class Project;
 
 namespace QmlDesigner {
 
-class NodeInstanceServerInterface;
+class NodeInstanceServerProxy;
 class CreateSceneCommand;
 class CreateInstancesCommand;
 class ClearSceneCommand;
@@ -64,6 +64,7 @@ class ChangeValuesCommand;
 class ChangeBindingsCommand;
 class ChangeIdsCommand;
 class RemoveInstancesCommand;
+class ChangeSelectionCommand;
 class RemovePropertiesCommand;
 class CompleteComponentCommand;
 class InformationContainer;
@@ -119,6 +120,7 @@ public:
     void updatePosition(const QList<VariantProperty>& propertyList);
 
     void valuesChanged(const ValuesChangedCommand &command) override;
+    void valuesModified(const ValuesModifiedCommand &command) override;
     void pixmapChanged(const PixmapChangedCommand &command) override;
     void informationChanged(const InformationChangedCommand &command) override;
     void childrenChanged(const ChildrenChangedCommand &command) override;
@@ -133,6 +135,11 @@ public:
     void setProject(ProjectExplorer::Project *project);
 
     void sendToken(const QString &token, int number, const QVector<ModelNode> &nodeVector);
+
+    void selectionChanged(const ChangeSelectionCommand &command) override;
+
+    void selectedNodesChanged(const QList<ModelNode> &selectedNodeList,
+                              const QList<ModelNode> &lastSelectedNodeList) override;
 
 protected:
     void timerEvent(QTimerEvent *event) override;
@@ -173,6 +180,7 @@ private: // functions
     ChangeBindingsCommand createChangeBindingCommand(const QList<BindingProperty> &propertyList) const;
     ChangeIdsCommand createChangeIdsCommand(const QList<NodeInstance> &instanceList) const;
     RemoveInstancesCommand createRemoveInstancesCommand(const QList<ModelNode> &nodeList) const;
+    ChangeSelectionCommand createChangeSelectionCommand(const QList<ModelNode> &nodeList) const;
     RemoveInstancesCommand createRemoveInstancesCommand(const ModelNode &node) const;
     RemovePropertiesCommand createRemovePropertiesCommand(const QList<AbstractProperty> &propertyList) const;
     RemoveSharedMemoryCommand createRemoveSharedMemoryCommand(const QString &sharedMemoryTypeName, quint32 keyNumber);
@@ -186,6 +194,8 @@ private: // functions
 
 private:
     void handleCrash();
+    void startPuppetTransaction();
+    void endPuppetTransaction();
 
 private: //variables
     NodeInstance m_rootNodeInstance;
@@ -194,13 +204,14 @@ private: //variables
     QHash<ModelNode, NodeInstance> m_nodeInstanceHash;
     QHash<ModelNode, QImage> m_statePreviewImage;
 
-    QPointer<NodeInstanceServerInterface> m_nodeInstanceServer;
+    QPointer<NodeInstanceServerProxy> m_nodeInstanceServer;
     QImage m_baseStatePreviewImage;
     QElapsedTimer m_lastCrashTime;
     NodeInstanceServerInterface::RunModus m_runModus;
     ProjectExplorer::Kit *m_currentKit = nullptr;
     ProjectExplorer::Project *m_currentProject = nullptr;
     int m_restartProcessTimerId;
+    RewriterTransaction m_puppetTransaction;
 };
 
 } // namespace ProxyNodeInstanceView

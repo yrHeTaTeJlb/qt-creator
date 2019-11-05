@@ -39,6 +39,7 @@
 #include "qt3dpresentationnodeinstance.h"
 
 #include "quickitemnodeinstance.h"
+#include "quick3dnodeinstance.h"
 
 #include "nodeinstanceserver.h"
 #include "instancecontainer.h"
@@ -128,6 +129,11 @@ bool ServerNodeInstance::isSubclassOf(QObject *object, const QByteArray &superTy
     return  Internal::QmlPrivateGate::isSubclassOf(object, superTypeName);
 }
 
+void ServerNodeInstance::setModifiedFlag(bool b)
+{
+    m_nodeInstance->setModifiedFlag(b);
+}
+
 void ServerNodeInstance::setNodeSource(const QString &source)
 {
     m_nodeInstance->setNodeSource(source);
@@ -170,6 +176,8 @@ Internal::ObjectNodeInstance::Pointer ServerNodeInstance::createInstance(QObject
         instance = Internal::LayoutNodeInstance::create(objectToBeWrapped);
     else if (isSubclassOf(objectToBeWrapped, "QQuickItem"))
         instance = Internal::QuickItemNodeInstance::create(objectToBeWrapped);
+    else if (isSubclassOf(objectToBeWrapped, "QQuick3DNode"))
+        instance = Internal::Quick3DNodeInstance::create(objectToBeWrapped);
     else if (isSubclassOf(objectToBeWrapped, "QQmlComponent"))
         instance = Internal::ComponentNodeInstance::create(objectToBeWrapped);
     else if (objectToBeWrapped->inherits("QQmlAnchorChanges"))
@@ -310,6 +318,11 @@ void ServerNodeInstance::setPropertyVariant(const PropertyName &name, const QVar
 void ServerNodeInstance::setPropertyBinding(const PropertyName &name, const QString &expression)
 {
     m_nodeInstance->setPropertyBinding(name, expression);
+}
+
+void ServerNodeInstance::setHideInEditor(bool b)
+{
+    m_nodeInstance->setHideInEditor(b);
 }
 
 void ServerNodeInstance::resetProperty(const PropertyName &name)

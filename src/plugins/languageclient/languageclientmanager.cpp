@@ -284,6 +284,13 @@ void LanguageClientManager::registerClientSettings(BaseSettings *settings)
     managerInstance->applySettings();
 }
 
+void LanguageClientManager::enableClientSettings(const QString &settingsId)
+{
+    QTC_ASSERT(managerInstance, return);
+    LanguageClientSettings::enableSettings(settingsId);
+    managerInstance->applySettings();
+}
+
 QVector<Client *> LanguageClientManager::clientForSetting(const BaseSettings *setting)
 {
     QTC_ASSERT(managerInstance, return {});
@@ -452,7 +459,7 @@ void LanguageClientManager::openDocumentWithClient(TextEditor::TextDocument *doc
 void LanguageClientManager::documentClosed(Core::IDocument *document)
 {
     if (auto textDocument = qobject_cast<TextEditor::TextDocument *>(document)) {
-        for (Client *client : reachableClients())
+        for (Client *client : m_clients)
             client->closeDocument(textDocument);
         m_clientForDocument.remove(textDocument);
     }

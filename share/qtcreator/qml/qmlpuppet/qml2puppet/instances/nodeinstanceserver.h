@@ -60,6 +60,7 @@ namespace QmlDesigner {
 
 class NodeInstanceClientInterface;
 class ValuesChangedCommand;
+class ValuesModifiedCommand;
 class PixmapChangedCommand;
 class InformationChangedCommand;
 class ChildrenChangedCommand;
@@ -68,6 +69,7 @@ class ComponentCompletedCommand;
 class AddImportContainer;
 class MockupTypeContainer;
 class IdContainer;
+class ChangeSelectionCommand;
 
 namespace Internal {
     class ChildrenChangeEventFilter;
@@ -81,6 +83,11 @@ public:
     using IdPropertyPair = QPair<qint32, QString>;
     using InstancePropertyPair= QPair<ServerNodeInstance, PropertyName>;
     using DummyPair = QPair<QString, QPointer<QObject> >;
+    using InstancePropertyValueTriple = struct {
+        ServerNodeInstance instance;
+        PropertyName propertyName;
+        QVariant propertyValue;
+    };
 
 
     explicit NodeInstanceServer(NodeInstanceClientInterface *nodeInstanceClient);
@@ -101,6 +108,7 @@ public:
     void changeNodeSource(const ChangeNodeSourceCommand &command) override;
     void token(const TokenCommand &command) override;
     void removeSharedMemory(const RemoveSharedMemoryCommand &command) override;
+    void changeSelection(const ChangeSelectionCommand &command) override;
 
     ServerNodeInstance instanceForId(qint32 id) const;
     bool hasInstanceForId(qint32 id) const;
@@ -166,10 +174,12 @@ protected:
 
     ValuesChangedCommand createValuesChangedCommand(const QList<ServerNodeInstance> &instanceList) const;
     ValuesChangedCommand createValuesChangedCommand(const QVector<InstancePropertyPair> &propertyList) const;
+    ValuesModifiedCommand createValuesModifiedCommand(const QVector<InstancePropertyValueTriple> &propertyList) const;
     PixmapChangedCommand createPixmapChangedCommand(const QList<ServerNodeInstance> &instanceList) const;
     InformationChangedCommand createAllInformationChangedCommand(const QList<ServerNodeInstance> &instanceList, bool initial = false) const;
     ChildrenChangedCommand createChildrenChangedCommand(const ServerNodeInstance &parentInstance, const QList<ServerNodeInstance> &instanceList) const;
     ComponentCompletedCommand createComponentCompletedCommand(const QList<ServerNodeInstance> &instanceList);
+    ChangeSelectionCommand createChangeSelectionCommand(const QList<ServerNodeInstance> &instanceList);
 
     void addChangedProperty(const InstancePropertyPair &property);
 

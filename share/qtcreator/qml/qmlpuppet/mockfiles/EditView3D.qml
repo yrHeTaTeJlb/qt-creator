@@ -23,79 +23,244 @@
 **
 ****************************************************************************/
 
-import QtQuick 2.0
+import QtQuick 2.12
 import QtQuick.Window 2.0
 import QtQuick3D 1.0
+import QtQuick3D.Helpers 1.0
 import QtQuick.Controls 2.0
+import QtGraphicalEffects 1.0
 
 Window {
+    id: viewWindow
     width: 1024
     height: 768
     visible: true
     title: "3D"
     flags: Qt.WindowStaysOnTopHint | Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
 
-    Rectangle {
-        color: "black"
-        anchors.fill: parent
+    property alias scene: editView.scene
+    property alias showEditLight: editLightCheckbox.checked
+    property alias usePerspective: usePerspectiveCheckbox.checked
+
+    property Node selectedNode: null
+
+    property var lightGizmos: []
+    property var cameraGizmos: []
+
+    signal objectClicked(var object)
+    signal commitObjectPosition(var object)
+    signal moveObjectPosition(var object)
+
+    function selectObject(object) {
+        selectedNode = object;
     }
 
-    Column {
-        y: 32
-        Slider {
-            id: slider
+    function emitObjectClicked(object) {
+        selectObject(object);
+        objectClicked(object);
+    }
 
-            value: -600
-            from: -1200
-            to: 600
+    function addLightGizmo(obj)
+    {
+        var component = Qt.createComponent("LightGizmo.qml");
+        if (component.status === Component.Ready) {
+            var gizmo = component.createObject(overlayScene,
+                                               {"view3D": overlayView, "targetNode": obj});
+            lightGizmos[lightGizmos.length] = gizmo;
+            gizmo.selected.connect(emitObjectClicked);
         }
-        Slider {
-            id: slider2
+    }
 
-            value: 0
-            from: -360
-            to: 360
+    function addCameraGizmo(obj)
+    {
+        var component = Qt.createComponent("CameraGizmo.qml");
+        if (component.status === Component.Ready) {
+            var gizmo = component.createObject(overlayScene,
+                                               {"view3D": overlayView, "targetNode": obj});
+            cameraGizmos[cameraGizmos.length] = gizmo;
+            gizmo.selected.connect(emitObjectClicked);
         }
-        CheckBox {
-            id: checkBox
-            text: "Light"
+    }
+
+    // Work-around the fact that the projection matrix for the camera is not calculated until
+    // the first frame is rendered, so any initial calls to mapFrom3DScene() will fail.
+    Component.onCompleted: designStudioNativeCameraControlHelper.requestOverlayUpdate();
+
+    onWidthChanged: designStudioNativeCameraControlHelper.requestOverlayUpdate();
+    onHeightChanged: designStudioNativeCameraControlHelper.requestOverlayUpdate();
+
+    Node {
+        id: overlayScene
+
+        PerspectiveCamera {
+            id: overlayPerspectiveCamera
+            clipFar: editPerspectiveCamera.clipFar
+            position: editPerspectiveCamera.position
+            rotation: editPerspectiveCamera.rotation
+        }
+
+        OrthographicCamera {
+            id: overlayOrthoCamera
+            position: editOrthoCamera.position
+            rotation: editOrthoCamera.rotation
+        }
+
+        MoveGizmo {
+            id: moveGizmo
+            scale: autoScale.getScale(Qt.vector3d(5, 5, 5))
+            highlightOnHover: true
+            targetNode: viewWindow.selectedNode
+            position: viewWindow.selectedNode ? viewWindow.selectedNode.scenePosition
+                                              : Qt.vector3d(0, 0, 0)
+
+            rotation: globalControl.checked || !viewWindow.selectedNode
+                      ? Qt.vector3d(0, 0, 0)
+                      : viewWindow.selectedNode.sceneRotation
+
+            visible: selectedNode
+            view3D: overlayView
+
+            onPositionCommit: viewWindow.commitObjectPosition(selectedNode)
+            onPositionMove: viewWindow.moveObjectPosition(selectedNode)
+        }
+
+        AutoScaleHelper {
+            id: autoScale
+            view3D: overlayView
+            position: moveGizmo.scenePosition
+        }
+    }
+
+    Rectangle {
+        id: sceneBg
+        color: "#FFFFFF"
+        anchors.fill: parent
+        focus: true
+
+        TapHandler { // check tapping/clicking an object in the scene
+            onTapped: {
+                var pickResult = editView.pick(eventPoint.scenePosition.x,
+                                               eventPoint.scenePosition.y);
+                emitObjectClicked(pickResult.objectHit);
+            }
+        }
+
+        View3D {
+            id: editView
+            anchors.fill: parent
+            camera: usePerspective ? editPerspectiveCamera : editOrthoCamera
+
+            Node {
+                id: mainSceneHelpers
+
+                AxisHelper {
+                    id: axisGrid
+                    enableXZGrid: true
+                    enableAxisLines: false
+                }
+
+                PointLight {
+                    id: pointLight
+                    visible: showEditLight
+                    position: usePerspective ? editPerspectiveCamera.position
+                                             : editOrthoCamera.position
+                }
+
+                PerspectiveCamera {
+                    id: editPerspectiveCamera
+                    y: 200
+                    z: -300
+                    clipFar: 100000
+                }
+
+                OrthographicCamera {
+                    id: editOrthoCamera
+                    y: 200
+                    z: -300
+                }
+            }
+        }
+
+        View3D {
+            id: overlayView
+            anchors.fill: parent
+            camera: usePerspective ? overlayPerspectiveCamera : overlayOrthoCamera
+            scene: overlayScene
+        }
+
+        Overlay2D {
+            id: gizmoLabel
+            targetNode: moveGizmo
+            targetView: overlayView
+            offsetX: 0
+            offsetY: 45
+            visible: moveGizmo.isDragging
+
             Rectangle {
-                anchors.fill: parent
-                z: -1
+                color: "white"
+                x: -width / 2
+                y: -height
+                width: gizmoLabelText.width + 4
+                height: gizmoLabelText.height + 4
+                border.width: 1
+                Text {
+                    id: gizmoLabelText
+                    text: {
+                        var l = Qt.locale();
+                        selectedNode
+                            ? qsTr("x:") + Number(selectedNode.position.x).toLocaleString(l, 'f', 1)
+                              + qsTr(" y:") + Number(selectedNode.position.y).toLocaleString(l, 'f', 1)
+                              + qsTr(" z:") + Number(selectedNode.position.z).toLocaleString(l, 'f', 1)
+                            : "";
+                    }
+                    anchors.centerIn: parent
+                }
+            }
+        }
+
+        WasdController {
+            id: cameraControl
+            controlledObject: editView.camera
+            acceptedButtons: Qt.RightButton
+
+            onInputsNeedProcessingChanged: designStudioNativeCameraControlHelper.enabled
+                                           = cameraControl.inputsNeedProcessing
+
+            // Use separate native timer as QML timers don't work inside Qt Design Studio
+            Connections {
+                target: designStudioNativeCameraControlHelper
+                onUpdateInputs: cameraControl.processInputs()
             }
         }
     }
 
-    Binding {
-        target: view.scene
-        property: "rotation.y"
-        value: slider2.value
+    Column {
+        y: 8
+        CheckBox {
+            id: editLightCheckbox
+            checked: false
+            text: qsTr("Use Edit View Light")
+            onCheckedChanged: cameraControl.forceActiveFocus()
+        }
+
+        CheckBox {
+            id: usePerspectiveCheckbox
+            checked: true
+            text: qsTr("Use Perspective Projection")
+            onCheckedChanged: cameraControl.forceActiveFocus()
+        }
+
+        CheckBox {
+            id: globalControl
+            checked: true
+            text: qsTr("Use Global Orientation")
+            onCheckedChanged: cameraControl.forceActiveFocus()
+        }
     }
 
-    property alias scene: view.scene
-    property alias showLight: checkBox.checked
-
-    id: viewWindow
-
-    View3D {
-        id: view
-        anchors.fill: parent
-        enableWireframeMode: true
-        camera: camera01
-
-        Light {
-            id: directionalLight
-            visible: checkBox.checked
-        }
-
-        Camera {
-            id: camera01
-            z: slider.value
-        }
-
-        Component.onCompleted: {
-            directionalLight.setParentItem(view.scene)
-            camera01.setParentItem(view.scene)
-        }
+    Text {
+        id: helpText
+        text: qsTr("Camera: W,A,S,D,R,F,right mouse drag")
+        anchors.bottom: parent.bottom
     }
 }

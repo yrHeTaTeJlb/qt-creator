@@ -392,6 +392,15 @@ PropertyNameList ObjectNodeInstance::ignoredProperties() const
     return PropertyNameList();
 }
 
+void ObjectNodeInstance::setHideInEditor(bool)
+{
+}
+
+void ObjectNodeInstance::setModifiedFlag(bool b)
+{
+    m_isModified = b;
+}
+
 QVariant ObjectNodeInstance::convertEnumToValue(const QVariant &value, const PropertyName &name)
 {
     Q_ASSERT(value.canConvert<Enumeration>());
@@ -414,6 +423,9 @@ QVariant ObjectNodeInstance::convertEnumToValue(const QVariant &value, const Pro
 void ObjectNodeInstance::setPropertyVariant(const PropertyName &name, const QVariant &value)
 {
     if (ignoredProperties().contains(name))
+        return;
+
+    if (m_isModified)
         return;
 
     QQmlProperty property(object(), QString::fromUtf8(name), context());

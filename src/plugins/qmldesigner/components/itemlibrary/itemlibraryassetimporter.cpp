@@ -127,6 +127,8 @@ void ItemLibraryAssetImporter::importQuick3D(const QStringList &inputFiles,
 #else
     Q_UNUSED(inputFiles)
     Q_UNUSED(importPath)
+    Q_UNUSED(options)
+    Q_UNUSED(extToImportOptionsMap)
     addError(tr("Importing 3D assets requires building against Qt Quick 3D module."));
     notifyFinished();
 #endif
@@ -171,8 +173,9 @@ bool ItemLibraryAssetImporter::isQuick3DAsset(const QString &fileName) const
         for (const auto &ext : exts)
             quick3DExt << ext;
     }
-    return quick3DExt.contains(QFileInfo(fileName).suffix());
+    return quick3DExt.contains(QFileInfo(fileName).suffix().toLower());
 #else
+    Q_UNUSED(fileName)
     return false;
 #endif
 }
@@ -182,6 +185,7 @@ QVariantMap ItemLibraryAssetImporter::supportedOptions(const QString &modelFile)
 #ifdef IMPORT_QUICK3D_ASSETS
     return m_quick3DAssetImporter->getOptionsForFile(modelFile);
 #else
+    Q_UNUSED(modelFile)
     return {};
 #endif
 }

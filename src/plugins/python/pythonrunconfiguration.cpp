@@ -23,19 +23,25 @@
 **
 ****************************************************************************/
 
+#include "pythonrunconfiguration.h"
+
 #include "pythonconstants.h"
 #include "pythonproject.h"
-#include "pythonrunconfiguration.h"
 #include "pythonsettings.h"
+#include "pythonutils.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/editormanager/editormanager.h>
+
+#include <languageclient/languageclientmanager.h>
 
 #include <projectexplorer/localenvironmentaspect.h>
 #include <projectexplorer/projectconfigurationaspects.h>
 #include <projectexplorer/runconfigurationaspects.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/taskhub.h>
+
+#include <texteditor/textdocument.h>
 
 #include <utils/fileutils.h>
 #include <utils/outputformatter.h>
@@ -248,12 +254,16 @@ PythonRunConfiguration::PythonRunConfiguration(Target *target, Core::Id id)
 {
     auto interpreterAspect = addAspect<InterpreterAspect>();
     interpreterAspect->setSettingsKey("PythonEditor.RunConfiguation.Interpreter");
+    connect(interpreterAspect, &InterpreterAspect::changed,
+            this, &PythonRunConfiguration::updateLanguageServer);
 
     connect(PythonSettings::instance(), &PythonSettings::interpretersChanged,
             interpreterAspect, &InterpreterAspect::updateInterpreters);
 
-    interpreterAspect->updateInterpreters(PythonSettings::interpreters());
-    interpreterAspect->setDefaultInterpreter(PythonSettings::defaultInterpreter());
+    QList<Interpreter> interpreters = PythonSettings::detectPythonVenvs(project()->projectDirectory());
+    aspect<InterpreterAspect>()->updateInterpreters(PythonSettings::interpreters());
+    aspect<InterpreterAspect>()->setDefaultInterpreter(
+        interpreters.isEmpty() ? PythonSettings::defaultInterpreter() : interpreters.first());
 
     auto scriptAspect = addAspect<MainScriptAspect>();
     scriptAspect->setSettingsKey("PythonEditor.RunConfiguation.Script");
@@ -281,6 +291,20 @@ PythonRunConfiguration::PythonRunConfiguration(Target *target, Core::Id id)
 void PythonRunConfiguration::doAdditionalSetup(const RunConfigurationCreationInfo &)
 {
     updateTargetInformation();
+}
+
+void PythonRunConfiguration::updateLanguageServer()
+{
+    using namespace LanguageClient;
+
+    const FilePath python(FilePath::fromUserInput(interpreter()));
+
+    for (FilePath &file : project()->files(Project::AllFiles)) {
+        if (auto document = TextEditor::TextDocument::textDocumentForFilePath(file)) {
+            if (document->mimeType() == Constants::C_PY_MIMETYPE)
+                PyLSConfigureAssistant::instance()->openDocumentWithPython(python, document);
+        }
+    }
 }
 
 bool PythonRunConfiguration::supportsDebugger() const

@@ -355,8 +355,14 @@ bool compareJavaScriptExpression(const QString &expression1, const QString &expr
 }
 
 bool smartVeryFuzzyCompare(const QVariant &value1, const QVariant &value2)
-{ //we ignore slight changes on doubles and only check three digits
-    if ((value1.type() == QVariant::Double) || (value2.type() == QVariant::Double)) {
+{
+    //we ignore slight changes on doubles and only check three digits
+    const auto type1 = static_cast<QMetaType::Type>(value1.type());
+    const auto type2 = static_cast<QMetaType::Type>(value2.type());
+    if (type1 == QMetaType::Double
+            || type2 == QMetaType::Double
+            || type1 == QMetaType::Float
+            || type2 == QMetaType::Float) {
         bool ok1, ok2;
         qreal a = value1.toDouble(&ok1);
         qreal b = value2.toDouble(&ok2);

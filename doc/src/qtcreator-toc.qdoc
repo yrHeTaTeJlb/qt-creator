@@ -160,6 +160,7 @@
             \list
                 \li \l{Previewing on Desktop}
                 \li \l{Previewing on Devices}
+                \li \l{Previewing in Browsers}
             \endlist
             \li \l{Building for Multiple Platforms}
             \li \l{Running on Multiple Platforms}
@@ -175,6 +176,7 @@
                 \li \l{Connecting Bare Metal Devices}
                 \li \l{Connecting Embedded Linux Devices}
                 \li \l{Connecting iOS Devices}
+                \li \l{Connecting MCUs}
                 \li \l{Connecting QNX Devices}
                 \li \l{Building Applications for the Web}
             \endlist
@@ -229,7 +231,7 @@
         \list
             \li \l{Using the Help Mode}
             \li \l{FAQ}
-            \li \l{Tips and Tricks}
+            \li \l{How-tos}
             \li \l{Known Issues}
             \li \l{Glossary}
             \li \l{Technical Support}
