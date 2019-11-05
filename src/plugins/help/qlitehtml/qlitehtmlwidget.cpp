@@ -556,7 +556,7 @@ static litehtml::element::ptr elementForY(int y, const litehtml::document::ptr &
 void QLiteHtmlWidget::resizeEvent(QResizeEvent *event)
 {
     withFixedTextPosition([this, event] {
-        QAbstractScrollArea::resizeEvent(event);
+        baseResizeEvent(event);
         render();
     });
 }
@@ -612,6 +612,11 @@ void QLiteHtmlWidget::contextMenuEvent(QContextMenuEvent *event)
     QPoint pos;
     htmlPos(event->pos(), &viewportPos, &pos);
     emit contextMenuRequested(event->pos(), d->documentContainer.linkAt(pos, viewportPos));
+}
+
+void QLiteHtmlWidget::baseResizeEvent(QResizeEvent *event)
+{
+    QAbstractScrollArea::resizeEvent(event);
 }
 
 void QLiteHtmlWidget::withFixedTextPosition(const std::function<void()> &action)

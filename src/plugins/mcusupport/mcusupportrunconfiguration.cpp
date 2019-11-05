@@ -83,6 +83,10 @@ public:
 
 class FlashAndRunWorker : public SimpleTargetRunner
 {
+    void baseDoStart(const Runnable &runnable, const IDevice::ConstPtr &device)
+    {
+        SimpleTargetRunner::doStart(runnable, device);
+    }
 public:
     FlashAndRunWorker(RunControl *runControl)
         : SimpleTargetRunner(runControl)
@@ -94,7 +98,7 @@ public:
             r.workingDirectory =
                     target->activeBuildConfiguration()->buildDirectory().toUserOutput();
             r.setCommandLine(cmd);
-            SimpleTargetRunner::doStart(r, {});
+            baseDoStart(r, {});
         });
     }
 };

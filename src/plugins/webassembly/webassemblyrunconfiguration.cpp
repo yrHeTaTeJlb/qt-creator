@@ -89,6 +89,10 @@ public:
 
 class EmrunRunWorker : public SimpleTargetRunner
 {
+    void baseDoStart(const Runnable &runnable, const IDevice::ConstPtr &device)
+    {
+        SimpleTargetRunner::doStart(runnable, device);
+    }
 public:
     EmrunRunWorker(RunControl *runControl)
         : SimpleTargetRunner(runControl)
@@ -102,7 +106,7 @@ public:
                                            QString::number(portsGatherer->findEndPoint().port()));
             Runnable r;
             r.setCommandLine(cmd);
-            SimpleTargetRunner::doStart(r, {});
+            baseDoStart(r, {});
         });
     }
 };
