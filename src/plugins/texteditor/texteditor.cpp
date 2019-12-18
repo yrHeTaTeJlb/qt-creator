@@ -3100,14 +3100,11 @@ void TextEditorWidgetPrivate::updateSyntaxInfoBar(const Highlighter::Definitions
         && !TextEditorSettings::highlighterSettings().isIgnoredFilePattern(fileName)) {
         InfoBarEntry info(missing,
                           BaseTextEditor::tr("A highlight definition was not found for this file. "
-                                             "Would you like to update highlight definition files?"),
+                                             "Would you like to download additional highlight definition files?"),
                           InfoBarEntry::GlobalSuppression::Enabled);
-        info.setCustomButtonInfo(BaseTextEditor::tr("Update Definitions"), [missing, this]() {
+        info.setCustomButtonInfo(BaseTextEditor::tr("Download Definitions"), [missing, this]() {
             m_document->infoBar()->removeInfo(missing);
-            Highlighter::updateDefinitions([widget = QPointer<TextEditorWidget>(q)]() {
-                if (widget)
-                    widget->configureGenericHighlighter();
-            });
+            Highlighter::downloadDefinitions();
         });
 
         infoBar->removeInfo(multiple);
@@ -4337,7 +4334,7 @@ void TextEditorWidgetPrivate::paintCurrentLineHighlight(const PaintEventData &da
     QColor color = m_document->fontSettings().toTextCharFormat(C_CURRENT_LINE).background().color();
     // set alpha, otherwise we cannot see block highlighting and find scope underneath
     color.setAlpha(128);
-    if (!data.isEditable && !data.eventRect.contains(lineRect.toRect())) {
+    if (!data.eventRect.contains(lineRect.toRect())) {
         QRect updateRect = data.eventRect;
         updateRect.setLeft(0);
         updateRect.setRight(data.viewportRect.width() - int(data.offset.x()));
@@ -5643,7 +5640,8 @@ void TextEditorWidget::showDefaultContextMenu(QContextMenuEvent *e, Id menuConte
 
 void TextEditorWidget::addHoverHandler(BaseHoverHandler *handler)
 {
-    d->m_hoverHandlers.append(handler);
+    if (!d->m_hoverHandlers.contains(handler))
+        d->m_hoverHandlers.append(handler);
 }
 
 void TextEditorWidget::removeHoverHandler(BaseHoverHandler *handler)
@@ -8440,8 +8438,9 @@ void TextEditorWidget::setupGenericHighlighter()
 // TextEditorLinkLabel
 //
 TextEditorLinkLabel::TextEditorLinkLabel(QWidget *parent)
-    : QLabel(parent)
+    : Utils::ElidingLabel(parent)
 {
+    setElideMode(Qt::ElideMiddle);
 }
 
 void TextEditorLinkLabel::setLink(Utils::Link link)

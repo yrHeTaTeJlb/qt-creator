@@ -67,7 +67,7 @@ using namespace Utils;
 namespace Android {
 namespace Internal {
 
-static const QString pidScript = "pidof -s \"%1\"";
+static const QString pidScript = "pidof -s '%1'";
 static const QString pidScriptPreNougat = QStringLiteral("for p in /proc/[0-9]*; "
                                                 "do cat <$p/cmdline && echo :${p##*/}; done");
 static const QString pidPollingScript = QStringLiteral("while [ -d /proc/%1 ]; do sleep 1; done");
@@ -225,7 +225,9 @@ AndroidRunnerWorker::AndroidRunnerWorker(RunWorker *runner, const QString &packa
                                  << "Extra Start Args:" << m_amStartExtraArgs
                                  << "Before Start ADB cmds:" << m_beforeStartAdbCommands
                                  << "After finish ADB cmds:" << m_afterFinishAdbCommands;
-    m_gdbserverPath = AndroidConfigurations::instance()->currentConfig().gdbServer(AndroidManager::devicePreferredAbi(target)).toString();
+    QString preferredAbi = AndroidManager::apkDevicePreferredAbi(target);
+    if (!preferredAbi.isEmpty())
+        m_gdbserverPath = AndroidConfigurations::instance()->currentConfig().gdbServer(preferredAbi).toString();
     QtSupport::BaseQtVersion *version = QtSupport::QtKitAspect::qtVersion(target->kit());
     m_useAppParamsForQmlDebugger = version->qtVersion() >= QtSupport::QtVersionNumber(5, 12);
 }
@@ -288,8 +290,8 @@ bool AndroidRunnerWorker::uploadGdbServer()
         qCDebug(androidRunWorkerLog) << "Gdbserver copy from temp directory failed";
         return false;
     }
-    QTC_ASSERT(runAdb({"shell", "run-as", m_packageName, "chmod", "+x", "./gdbserver"}),
-                   qCDebug(androidRunWorkerLog) << "Gdbserver chmod +x failed.");
+    QTC_ASSERT(runAdb({"shell", "run-as", m_packageName, "chmod", "777", "./gdbserver"}),
+                   qCDebug(androidRunWorkerLog) << "Gdbserver chmod 777 failed.");
     return true;
 }
 
@@ -597,7 +599,7 @@ void AndroidRunnerWorker::handleJdbWaiting()
     QStringList jdbArgs("-connect");
     jdbArgs << QString("com.sun.jdi.SocketAttach:hostname=localhost,port=%1")
                .arg(m_localJdbServerPort.toString());
-    qCDebug(androidRunWorkerLog) << "Starting JDB:" << jdbPath << jdbArgs.join(' ');
+    qCDebug(androidRunWorkerLog) << "Starting JDB:" << CommandLine(jdbPath, jdbArgs).toUserOutput();
     std::unique_ptr<QProcess, Deleter> jdbProcess(new QProcess, &deleter);
     jdbProcess->setProcessChannelMode(QProcess::MergedChannels);
     jdbProcess->start(jdbPath.toString(), jdbArgs);

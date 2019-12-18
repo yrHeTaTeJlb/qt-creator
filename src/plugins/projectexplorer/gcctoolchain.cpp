@@ -664,7 +664,7 @@ ToolChain::BuiltInHeaderPathsRunner GccToolChain::createBuiltInHeaderPathsRunner
                                   extraHeaderPathsFunction,
                                   flags,
                                   sysRoot,
-                                  /*target=*/""); // Target must be empty for gcc.
+                                  /*originalTargetTriple=*/""); // Must be empty for gcc.
     };
 }
 
@@ -1339,9 +1339,7 @@ void GccToolChainConfigWidget::handleCompilerCommandChange()
 
     // Find a good ABI for the new compiler:
     Abi newAbi;
-    if (customAbi)
-        newAbi = currentAbi;
-    else if (abiList.contains(currentAbi))
+    if (customAbi || abiList.contains(currentAbi))
         newAbi = currentAbi;
 
     m_abiWidget->setAbis(abiList, newAbi);

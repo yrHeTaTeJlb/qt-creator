@@ -31,7 +31,7 @@ if (APPLE)
   set(_IDE_PLUGIN_PATH "${_IDE_OUTPUT_PATH}/PlugIns")
   set(_IDE_LIBRARY_BASE_PATH "Frameworks")
   set(_IDE_LIBRARY_PATH "${_IDE_OUTPUT_PATH}/Frameworks")
-  set(_IDE_LIBEXEC_PATH "${_IDE_OUTPUT_PATH}/Resources")
+  set(_IDE_LIBEXEC_PATH "${_IDE_OUTPUT_PATH}/Resources/libexec")
   set(_IDE_DATA_PATH "${_IDE_OUTPUT_PATH}/Resources")
   set(_IDE_DOC_PATH "${_IDE_OUTPUT_PATH}/Resources/doc")
   set(_IDE_BIN_PATH "${_IDE_OUTPUT_PATH}/MacOS")
@@ -171,8 +171,12 @@ function(separate_object_libraries libraries REGULAR_LIBS OBJECT_LIBS OBJECT_LIB
 endfunction(separate_object_libraries)
 
 function(set_explicit_moc target_name file)
+  unset(file_dependencies)
+  if (file MATCHES "^.*plugin.h$")
+    set(file_dependencies DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.json")
+  endif()
   set_property(SOURCE "${file}" PROPERTY SKIP_AUTOMOC ON)
-  qt5_wrap_cpp(file_moc "${file}")
+  qt5_wrap_cpp(file_moc "${file}" ${file_dependencies})
   target_sources(${target_name} PRIVATE "${file_moc}")
 endfunction()
 
@@ -480,16 +484,18 @@ function(add_qtc_library name)
 
   install(TARGETS ${name}
     EXPORT ${IDE_CASED_ID}
-    RUNTIME DESTINATION "${_DESTINATION}"
+    RUNTIME DESTINATION "${_DESTINATION}" OPTIONAL
     LIBRARY
       DESTINATION "${IDE_LIBRARY_PATH}"
       ${NAMELINK_OPTION}
+      OPTIONAL
     OBJECTS
       DESTINATION "${IDE_LIBRARY_PATH}"
       COMPONENT Devel EXCLUDE_FROM_ALL
     ARCHIVE
       DESTINATION "${IDE_LIBRARY_PATH}"
       COMPONENT Devel EXCLUDE_FROM_ALL
+      OPTIONAL
   )
 
   if (NAMELINK_OPTION)
@@ -498,6 +504,7 @@ function(add_qtc_library name)
         DESTINATION "${IDE_LIBRARY_PATH}"
         NAMELINK_ONLY
         COMPONENT Devel EXCLUDE_FROM_ALL
+      OPTIONAL
     )
   endif()
 
@@ -692,11 +699,12 @@ function(add_qtc_plugin target_name)
   if (NOT _arg_SKIP_INSTALL)
     install(TARGETS ${target_name}
       EXPORT ${IDE_CASED_ID}
-      RUNTIME DESTINATION "${plugin_dir}"
-      LIBRARY DESTINATION "${plugin_dir}"
+      RUNTIME DESTINATION "${plugin_dir}" OPTIONAL
+      LIBRARY DESTINATION "${plugin_dir}" OPTIONAL
       ARCHIVE
         DESTINATION "${plugin_dir}"
         COMPONENT Devel EXCLUDE_FROM_ALL
+        OPTIONAL
     )
   endif()
 endfunction()
@@ -846,7 +854,7 @@ function(add_qtc_executable name)
   enable_pch(${name})
 
   if (NOT _arg_SKIP_INSTALL)
-    install(TARGETS ${name} DESTINATION "${_DESTINATION}")
+    install(TARGETS ${name} DESTINATION "${_DESTINATION}" OPTIONAL)
   endif()
 endfunction()
 

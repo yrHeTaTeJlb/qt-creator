@@ -70,6 +70,7 @@ class AddImportContainer;
 class MockupTypeContainer;
 class IdContainer;
 class ChangeSelectionCommand;
+class Drop3DLibraryItemCommand;
 
 namespace Internal {
     class ChildrenChangeEventFilter;
@@ -100,6 +101,7 @@ public:
     void changeIds(const ChangeIdsCommand &command) override;
     void createScene(const CreateSceneCommand &command) override;
     void clearScene(const ClearSceneCommand &command) override;
+    void change3DView(const Change3DViewCommand &command) override;
     void removeInstances(const RemoveInstancesCommand &command) override;
     void removeProperties(const RemovePropertiesCommand &command) override;
     void reparentInstances(const ReparentInstancesCommand &command) override;
@@ -180,6 +182,7 @@ protected:
     ChildrenChangedCommand createChildrenChangedCommand(const ServerNodeInstance &parentInstance, const QList<ServerNodeInstance> &instanceList) const;
     ComponentCompletedCommand createComponentCompletedCommand(const QList<ServerNodeInstance> &instanceList);
     ChangeSelectionCommand createChangeSelectionCommand(const QList<ServerNodeInstance> &instanceList);
+    Drop3DLibraryItemCommand createDrop3DLibraryItemCommand(const QByteArray &itemData);
 
     void addChangedProperty(const InstancePropertyPair &property);
 

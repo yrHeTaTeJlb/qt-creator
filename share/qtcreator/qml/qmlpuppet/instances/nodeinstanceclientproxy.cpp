@@ -41,6 +41,7 @@
 #include "instancecontainer.h"
 #include "createinstancescommand.h"
 #include "createscenecommand.h"
+#include "change3dviewcommand.h"
 #include "changevaluescommand.h"
 #include "changebindingscommand.h"
 #include "changeauxiliarycommand.h"
@@ -68,6 +69,7 @@
 #include "debugoutputcommand.h"
 #include "puppetalivecommand.h"
 #include "changeselectioncommand.h"
+#include "drop3dlibraryitemcommand.h"
 
 namespace QmlDesigner {
 
@@ -139,6 +141,7 @@ bool compareCommands(const QVariant &command, const QVariant &controlCommand)
     static const int tokenCommandType = QMetaType::type("TokenCommand");
     static const int debugOutputCommandType = QMetaType::type("DebugOutputCommand");
     static const int changeSelectionCommandType = QMetaType::type("ChangeSelectionCommand");
+    static const int drop3DLibraryItemCommandType = QMetaType::type("Drop3DLibraryItemCommand");
 
     if (command.userType() == controlCommand.userType()) {
         if (command.userType() == informationChangedCommandType)
@@ -163,6 +166,8 @@ bool compareCommands(const QVariant &command, const QVariant &controlCommand)
             return command.value<DebugOutputCommand>() == controlCommand.value<DebugOutputCommand>();
         else if (command.userType() == changeSelectionCommandType)
             return command.value<ChangeSelectionCommand>() == controlCommand.value<ChangeSelectionCommand>();
+        else if (command.userType() == drop3DLibraryItemCommandType)
+            return command.value<Drop3DLibraryItemCommand>() == controlCommand.value<Drop3DLibraryItemCommand>();
     }
 
     return false;
@@ -248,6 +253,11 @@ void NodeInstanceClientProxy::puppetAlive(const PuppetAliveCommand &command)
 void NodeInstanceClientProxy::selectionChanged(const ChangeSelectionCommand &command)
 {
      writeCommand(QVariant::fromValue(command));
+}
+
+void NodeInstanceClientProxy::library3DItemDropped(const Drop3DLibraryItemCommand &command)
+{
+    writeCommand(QVariant::fromValue(command));
 }
 
 void NodeInstanceClientProxy::flush()
@@ -351,6 +361,11 @@ void NodeInstanceClientProxy::createScene(const CreateSceneCommand &command)
     nodeInstanceServer()->createScene(command);
 }
 
+void NodeInstanceClientProxy::change3DView(const Change3DViewCommand &command)
+{
+    nodeInstanceServer()->change3DView(command);
+}
+
 void NodeInstanceClientProxy::clearScene(const ClearSceneCommand &command)
 {
     nodeInstanceServer()->clearScene(command);
@@ -438,6 +453,7 @@ void NodeInstanceClientProxy::changeSelection(const ChangeSelectionCommand &comm
 void NodeInstanceClientProxy::dispatchCommand(const QVariant &command)
 {
     static const int createInstancesCommandType = QMetaType::type("CreateInstancesCommand");
+    static const int change3DViewCommandType = QMetaType::type("Change3DViewCommand");
     static const int changeFileUrlCommandType = QMetaType::type("ChangeFileUrlCommand");
     static const int createSceneCommandType = QMetaType::type("CreateSceneCommand");
     static const int clearSceneCommandType = QMetaType::type("ClearSceneCommand");
@@ -461,6 +477,8 @@ void NodeInstanceClientProxy::dispatchCommand(const QVariant &command)
 
     if (commandType == createInstancesCommandType)
         createInstances(command.value<CreateInstancesCommand>());
+    else if (commandType == change3DViewCommandType)
+        change3DView(command.value<Change3DViewCommand>());
     else if (commandType == changeFileUrlCommandType)
         changeFileUrl(command.value<ChangeFileUrlCommand>());
     else if (commandType == createSceneCommandType)

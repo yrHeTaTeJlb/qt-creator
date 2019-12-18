@@ -25,37 +25,35 @@
 
 #pragma once
 
-#include <QtCore/QObject>
-#include <QtCore/QTimer>
+#include <QVector>
+#include <QDataStream>
+#include <QMimeData>
+
+#include "instancecontainer.h"
 
 namespace QmlDesigner {
-namespace Internal {
-class CameraControlHelper : public QObject
+
+class Drop3DLibraryItemCommand
 {
-    Q_OBJECT
-    Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    friend QDataStream &operator>>(QDataStream &in, Drop3DLibraryItemCommand &command);
+    friend QDebug operator<<(QDebug debug, const Drop3DLibraryItemCommand &command);
+    friend bool operator==(const Drop3DLibraryItemCommand &first,
+                           const Drop3DLibraryItemCommand &second);
 
 public:
-    CameraControlHelper();
+    explicit Drop3DLibraryItemCommand(const QByteArray &itemData);
+    Drop3DLibraryItemCommand() = default;
 
-    bool enabled();
-    void setEnabled(bool enabled);
-
-    Q_INVOKABLE void requestOverlayUpdate();
-
-public slots:
-    void handleUpdateTimer();
-
-signals:
-    void updateInputs();
-    void enabledChanged(bool enabled);
-    void overlayUpdateNeeded();
+    QByteArray itemData() const { return m_itemData; }
 
 private:
-    bool m_enabled = false;
-    QTimer m_inputUpdateTimer;
-    QTimer m_overlayUpdateTimer;
+    QByteArray m_itemData;
 };
 
-}
-}
+QDataStream &operator<<(QDataStream &out, const Drop3DLibraryItemCommand &command);
+QDataStream &operator>>(QDataStream &in, Drop3DLibraryItemCommand &command);
+bool operator==(const Drop3DLibraryItemCommand &first, const Drop3DLibraryItemCommand &second);
+
+} // namespace QmlDesigner
+
+Q_DECLARE_METATYPE(QmlDesigner::Drop3DLibraryItemCommand)

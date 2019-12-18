@@ -27,6 +27,8 @@
 
 #include <QQuickItem>
 #include <QQuickView>
+#include <QDropEvent>
+#include <QMimeData>
 
 #include "servernodeinstance.h"
 #include "childrenchangeeventfilter.h"
@@ -38,6 +40,7 @@
 #include "changefileurlcommand.h"
 #include "clearscenecommand.h"
 #include "reparentinstancescommand.h"
+#include "change3dviewcommand.h"
 #include "changevaluescommand.h"
 #include "changebindingscommand.h"
 #include "changeidscommand.h"
@@ -55,12 +58,15 @@
 #include "createscenecommand.h"
 #include "tokencommand.h"
 #include "removesharedmemorycommand.h"
-#include "changeselectioncommand.h"
 #include "objectnodeinstance.h"
+#include <drop3dlibraryitemcommand.h>
 
 #include "dummycontextobject.h"
-#include "../editor3d/cameracontrolhelper.h"
+#include "../editor3d/generalhelper.h"
 #include "../editor3d/mousearea3d.h"
+#include "../editor3d/camerageometry.h"
+#include "../editor3d/gridgeometry.h"
+#include "../editor3d/selectionboxgeometry.h"
 
 #include <designersupportdelegate.h>
 
@@ -78,13 +84,34 @@ static QVariant objectToVariant(QObject *object)
     return QVariant::fromValue(object);
 }
 
+bool Qt5InformationNodeInstanceServer::eventFilter(QObject *, QEvent *event)
+{
+    switch (event->type()) {
+    case QEvent::Drop: {
+        QDropEvent *dropEvent = static_cast<QDropEvent *>(event);
+        QByteArray data = dropEvent->mimeData()->data(
+                                        QStringLiteral("application/vnd.bauhaus.itemlibraryinfo"));
+        if (!data.isEmpty())
+            nodeInstanceClient()->library3DItemDropped(createDrop3DLibraryItemCommand(data));
+
+    } break;
+
+    default:
+        break;
+    }
+
+    return false;
+}
+
 QObject *Qt5InformationNodeInstanceServer::createEditView3D(QQmlEngine *engine)
 {
-    auto helper = new QmlDesigner::Internal::CameraControlHelper();
-    engine->rootContext()->setContextProperty("designStudioNativeCameraControlHelper", helper);
-
 #ifdef QUICK3D_MODULE
+    auto helper = new QmlDesigner::Internal::GeneralHelper();
+    engine->rootContext()->setContextProperty("_generalHelper", helper);
     qmlRegisterType<QmlDesigner::Internal::MouseArea3D>("MouseArea3D", 1, 0, "MouseArea3D");
+    qmlRegisterType<QmlDesigner::Internal::CameraGeometry>("CameraGeometry", 1, 0, "CameraGeometry");
+    qmlRegisterType<QmlDesigner::Internal::GridGeometry>("GridGeometry", 1, 0, "GridGeometry");
+    qmlRegisterType<QmlDesigner::Internal::SelectionBoxGeometry>("SelectionBoxGeometry", 1, 0, "SelectionBoxGeometry");
 #endif
 
     QQmlComponent component(engine, QUrl("qrc:/qtquickplugin/mockfiles/EditView3D.qml"));
@@ -96,32 +123,48 @@ QObject *Qt5InformationNodeInstanceServer::createEditView3D(QQmlEngine *engine)
         return nullptr;
     }
 
-    QObject::connect(window, SIGNAL(objectClicked(QVariant)), this, SLOT(objectClicked(QVariant)));
-    QObject::connect(window, SIGNAL(commitObjectPosition(QVariant)),
-                     this, SLOT(handleObjectPositionCommit(QVariant)));
-    QObject::connect(window, SIGNAL(moveObjectPosition(QVariant)),
-                     this, SLOT(handleObjectPositionMove(QVariant)));
-    QObject::connect(&m_moveTimer, &QTimer::timeout,
-                     this, &Qt5InformationNodeInstanceServer::handleObjectPositionMoveTimeout);
+    window->installEventFilter(this);
+    QObject::connect(window, SIGNAL(selectionChanged(QVariant)),
+                     this, SLOT(handleSelectionChanged(QVariant)));
+    QObject::connect(window, SIGNAL(commitObjectProperty(QVariant, QVariant)),
+                     this, SLOT(handleObjectPropertyCommit(QVariant, QVariant)));
+    QObject::connect(window, SIGNAL(changeObjectProperty(QVariant, QVariant)),
+                     this, SLOT(handleObjectPropertyChange(QVariant, QVariant)));
+    QObject::connect(window, SIGNAL(activeChanged()),
+                     this, SLOT(handleActiveChanged()));
+    QObject::connect(&m_propertyChangeTimer, &QTimer::timeout,
+                     this, &Qt5InformationNodeInstanceServer::handleObjectPropertyChangeTimeout);
+    QObject::connect(&m_selectionChangeTimer, &QTimer::timeout,
+                     this, &Qt5InformationNodeInstanceServer::handleSelectionChangeTimeout);
 
     //For macOS we have to use the 4.1 core profile
     QSurfaceFormat surfaceFormat = window->requestedFormat();
     surfaceFormat.setVersion(4, 1);
     surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
     window->setFormat(surfaceFormat);
+
+#ifdef QUICK3D_MODULE
     helper->setParent(window);
+#endif
 
     return window;
 }
 
-// an object is clicked in the 3D edit view. Null object indicates selection clearing.
-void Qt5InformationNodeInstanceServer::objectClicked(const QVariant &object)
+// The selection has changed in the 3D edit view. Empty list indicates selection is cleared.
+void Qt5InformationNodeInstanceServer::handleSelectionChanged(const QVariant &objs)
 {
-    auto obj = object.value<QObject *>();
-    ServerNodeInstance instance;
-    if (obj)
-        instance = instanceForObject(obj);
-    selectInstance(instance);
+    QList<ServerNodeInstance> instanceList;
+    const QVariantList varObjs = objs.value<QVariantList>();
+    for (const auto &object : varObjs) {
+        auto obj = object.value<QObject *>();
+        if (obj) {
+            ServerNodeInstance instance = instanceForObject(obj);
+            instanceList << instance;
+        }
+    }
+    selectInstances(instanceList);
+    // Hold selection changes reflected back from designer for a bit
+    m_selectionChangeTimer.start(500);
 }
 
 QVector<Qt5InformationNodeInstanceServer::InstancePropertyValueTriple>
@@ -188,28 +231,112 @@ void Qt5InformationNodeInstanceServer::modifyVariantValue(
     }
 }
 
-void Qt5InformationNodeInstanceServer::handleObjectPositionCommit(const QVariant &object)
+void Qt5InformationNodeInstanceServer::showEditView(const QPoint &pos, const QSize &size)
 {
-    modifyVariantValue(object, "position", ValuesModifiedCommand::TransactionOption::End);
-    m_movedNode = {};
-    m_moveTimer.stop();
+    m_blockViewActivate = false;
+    auto window = qobject_cast<QWindow *>(m_editView3D);
+    if (window) {
+        activateEditView();
+        window->setPosition(pos);
+        window->resize(size);
+    }
 }
 
-void Qt5InformationNodeInstanceServer::handleObjectPositionMove(const QVariant &object)
+void Qt5InformationNodeInstanceServer::hideEditView()
 {
-    if (m_movedNode.isNull()) {
-        modifyVariantValue(object, "position", ValuesModifiedCommand::TransactionOption::Start);
-    } else {
-        if (!m_moveTimer.isActive())
-            m_moveTimer.start();
+    m_blockViewActivate = true;
+    auto window = qobject_cast<QWindow *>(m_editView3D);
+    if (window)
+        window->hide();
+}
+
+void Qt5InformationNodeInstanceServer::activateEditView()
+{
+    auto window = qobject_cast<QWindow *>(m_editView3D);
+    if (window) {
+        Qt::WindowFlags flags = window->flags();
+
+#ifdef Q_OS_MACOS
+        window->setFlags(Qt::Popup);
+        window->show();
+        window->setFlags(flags);
+#else
+        window->raise();
+        window->setFlags(flags | Qt::WindowStaysOnTopHint);
+        window->show();
+
+        window->requestActivate();
+        window->raise();
+        window->setFlags(flags);
+#endif
     }
-    m_movedNode = object;
+}
+
+void Qt5InformationNodeInstanceServer::moveEditView(const QPoint &pos)
+{
+    auto window = qobject_cast<QWindow*>(m_editView3D);
+    if (window) {
+        activateEditView();
+        window->setPosition(pos);
+    }
+}
+
+void Qt5InformationNodeInstanceServer::resizeEditView(const QSize &size)
+{
+    auto window = qobject_cast<QWindow *>(m_editView3D);
+    if (window) {
+        activateEditView();
+        window->resize(size);
+    }
+}
+
+void Qt5InformationNodeInstanceServer::handleObjectPropertyCommit(const QVariant &object,
+                                                                  const QVariant &propName)
+{
+    modifyVariantValue(object, propName.toByteArray(),
+                       ValuesModifiedCommand::TransactionOption::End);
+    m_changedNode = {};
+    m_changedProperty = {};
+    m_propertyChangeTimer.stop();
+}
+
+void Qt5InformationNodeInstanceServer::handleObjectPropertyChange(const QVariant &object,
+                                                                  const QVariant &propName)
+{
+    PropertyName propertyName(propName.toByteArray());
+    if (m_changedProperty != propertyName || m_changedNode != object) {
+        if (!m_changedNode.isNull())
+            handleObjectPropertyCommit(m_changedNode, m_changedProperty);
+        modifyVariantValue(object, propertyName,
+                           ValuesModifiedCommand::TransactionOption::Start);
+    } else if (!m_propertyChangeTimer.isActive()) {
+        m_propertyChangeTimer.start();
+    }
+    m_changedNode = object;
+    m_changedProperty = propertyName;
+}
+
+void Qt5InformationNodeInstanceServer::updateViewPortRect()
+{
+    QRectF viewPortrect(0, 0, m_viewPortInstance.internalObject()->property("width").toDouble(),
+                        m_viewPortInstance.internalObject()->property("height").toDouble());
+    QQmlProperty viewPortProperty(m_editView3D, "viewPortRect", context());
+    viewPortProperty.write(viewPortrect);
+}
+
+void Qt5InformationNodeInstanceServer::handleActiveChanged()
+{
+    if (m_blockViewActivate)
+        return;
+
+    activateEditView();
 }
 
 Qt5InformationNodeInstanceServer::Qt5InformationNodeInstanceServer(NodeInstanceClientInterface *nodeInstanceClient) :
     Qt5NodeInstanceServer(nodeInstanceClient)
 {
-    m_moveTimer.setInterval(100);
+    m_propertyChangeTimer.setInterval(100);
+    m_selectionChangeTimer.setSingleShot(true);
 }
 
 void Qt5InformationNodeInstanceServer::sendTokenBack()
@@ -268,9 +395,9 @@ bool Qt5InformationNodeInstanceServer::isDirtyRecursiveForParentInstances(QQuick
 }
 
 /* This method allows changing the selection from the puppet */
-void Qt5InformationNodeInstanceServer::selectInstance(const ServerNodeInstance &instance)
+void Qt5InformationNodeInstanceServer::selectInstances(const QList<ServerNodeInstance> &instanceList)
 {
-    nodeInstanceClient()->selectionChanged(createChangeSelectionCommand({instance}));
+    nodeInstanceClient()->selectionChanged(createChangeSelectionCommand(instanceList));
 }
 
 /* This method allows changing property values from the puppet
@@ -282,9 +409,15 @@ void Qt5InformationNodeInstanceServer::modifyProperties(
     nodeInstanceClient()->valuesModified(createValuesModifiedCommand(properties));
 }
 
-void Qt5InformationNodeInstanceServer::handleObjectPositionMoveTimeout()
+void Qt5InformationNodeInstanceServer::handleObjectPropertyChangeTimeout()
 {
-    modifyVariantValue(m_movedNode, "position", ValuesModifiedCommand::TransactionOption::None);
+    modifyVariantValue(m_changedNode, m_changedProperty,
+                       ValuesModifiedCommand::TransactionOption::None);
+}
+
+void Qt5InformationNodeInstanceServer::handleSelectionChangeTimeout()
+{
+    changeSelection(m_pendingSelectionChangeCommand);
 }
 
 QObject *Qt5InformationNodeInstanceServer::findRootNodeOf3DViewport(
@@ -292,12 +425,24 @@ QObject *Qt5InformationNodeInstanceServer::findRootNodeOf3DViewport(
 {
     for (const ServerNodeInstance &instance : instanceList) {
         if (instance.isSubclassOf("QQuick3DViewport")) {
+            QObject *rootObj = nullptr;
+            int viewChildCount = 0;
             for (const ServerNodeInstance &child : instanceList) { /* Look for scene node */
                 /* The QQuick3DViewport always creates a root node.
                  * This root node contains the complete scene. */
-                if (child.isSubclassOf("QQuick3DNode") && child.parent() == instance)
-                    return child.internalObject()->property("parent").value<QObject *>();
+                if (child.isSubclassOf("QQuick3DNode") && child.parent() == instance) {
+                    // Implicit root node is not visible in editor, so there is often another node
+                    // added below it that serves as the actual scene root node.
+                    // If the found root is the only node child of the view, assume that is the case.
+                    ++viewChildCount;
+                    if (!rootObj)
+                        rootObj = child.internalObject();
+                }
             }
+            if (viewChildCount == 1)
+                return rootObj;
+            else if (rootObj)
+                return rootObj->property("parent").value<QObject *>();
         }
     }
     return nullptr;
@@ -307,7 +452,6 @@ void Qt5InformationNodeInstanceServer::findCamerasAndLights(
         const QList<ServerNodeInstance> &instanceList,
         QObjectList &cameras, QObjectList &lights) const
 {
-    QObjectList objList;
     for (const ServerNodeInstance &instance : instanceList) {
         if (instance.isSubclassOf("QQuick3DCamera"))
             cameras << instance.internalObject();
@@ -316,33 +460,51 @@ void Qt5InformationNodeInstanceServer::findCamerasAndLights(
     }
 }
 
+ServerNodeInstance Qt5InformationNodeInstanceServer::findViewPort(
+        const QList<ServerNodeInstance> &instanceList)
+{
+    for (const ServerNodeInstance &instance : instanceList) {
+        if (instance.isSubclassOf("QQuick3DViewport"))
+            return instance;
+    }
+    return ServerNodeInstance();
+}
+
 void Qt5InformationNodeInstanceServer::setup3DEditView(const QList<ServerNodeInstance> &instanceList)
 {
     ServerNodeInstance root = rootNodeInstance();
 
-    QObject *node = nullptr;
     bool showCustomLight = false;
 
     if (root.isSubclassOf("QQuick3DNode")) {
-        node = root.internalObject();
+        m_rootNode = root.internalObject();
         showCustomLight = true; // Pure node scene we should add a custom light
     } else {
-        node = findRootNodeOf3DViewport(instanceList);
+        m_rootNode = findRootNodeOf3DViewport(instanceList);
     }
 
-    if (node) { // If we found a scene we create the edit view
+    if (m_rootNode) { // If we found a scene we create the edit view
         m_editView3D = createEditView3D(engine());
 
         if (!m_editView3D)
             return;
 
         QQmlProperty sceneProperty(m_editView3D, "scene", context());
-        node->setParent(m_editView3D);
-        sceneProperty.write(objectToVariant(node));
-        QQmlProperty parentProperty(node, "parent", context());
+        m_rootNode->setParent(m_editView3D);
+        sceneProperty.write(objectToVariant(m_rootNode));
+        QQmlProperty parentProperty(m_rootNode, "parent", context());
         parentProperty.write(objectToVariant(m_editView3D));
-        QQmlProperty completeSceneProperty(m_editView3D, "showLight", context());
-        completeSceneProperty.write(showCustomLight);
+        QQmlProperty showLightProperty(m_editView3D, "showLight", context());
+        showLightProperty.write(showCustomLight);
+
+        m_viewPortInstance = findViewPort(instanceList);
+        if (m_viewPortInstance.internalObject()) {
+            QObject::connect(m_viewPortInstance.internalObject(), SIGNAL(widthChanged()),
+                             this, SLOT(updateViewPortRect()));
+            QObject::connect(m_viewPortInstance.internalObject(), SIGNAL(heightChanged()),
+                             this, SLOT(updateViewPortRect()));
+            updateViewPortRect();
+        }
 
         // Create camera and light gizmos
         QObjectList cameras;
@@ -532,19 +694,40 @@ void Qt5InformationNodeInstanceServer::changeSelection(const ChangeSelectionComm
     if (!m_editView3D)
         return;
 
+    if (m_selectionChangeTimer.isActive()) {
+        // If selection was recently changed by puppet, hold updating the selection for a bit to
+        // avoid selection flicker, especially in multiselect cases.
+        m_pendingSelectionChangeCommand = command;
+        // Add additional time in case more commands are still coming through
+        m_selectionChangeTimer.start(500);
+        return;
+    }
+
     const QVector<qint32> instanceIds = command.instanceIds();
+    QVariantList selectedObjs;
     for (qint32 id : instanceIds) {
         if (hasInstanceForId(id)) {
             ServerNodeInstance instance = instanceForId(id);
             QObject *object = nullptr;
-            if (instance.isSubclassOf("QQuick3DModel") || instance.isSubclassOf("QQuick3DCamera")
-                || instance.isSubclassOf("QQuick3DAbstractLight")) {
+            if (instance.isSubclassOf("QQuick3DNode"))
                 object = instance.internalObject();
-            }
-            QMetaObject::invokeMethod(m_editView3D, "selectObject", Q_ARG(QVariant,
-                                                                          objectToVariant(object)));
-            return; // TODO: support multi-selection
+            if (object && object != m_rootNode)
+                selectedObjs << objectToVariant(object);
         }
+    }
+
+    // Ensure the UI has enough selection box items. If it doesn't yet have them, which can be the
+    // case when the first selection processed is a multiselection, we wait a bit as
+    // using the new boxes immediately leads to visual glitches.
+    int boxCount = m_editView3D->property("selectionBoxes").value<QVariantList>().size();
+    if (boxCount < selectedObjs.size()) {
+        QMetaObject::invokeMethod(m_editView3D, "ensureSelectionBoxes",
+                                  Q_ARG(QVariant, QVariant::fromValue(selectedObjs.size())));
+        m_pendingSelectionChangeCommand = command;
+        m_selectionChangeTimer.start(100);
+    } else {
+        QMetaObject::invokeMethod(m_editView3D, "selectObjects",
+                                  Q_ARG(QVariant, QVariant::fromValue(selectedObjs)));
     }
 }
 
@@ -563,6 +746,20 @@ void Qt5InformationNodeInstanceServer::changePropertyValues(const ChangeValuesCo
         refreshBindings();
 
     startRenderTimer();
+}
+
+void Qt5InformationNodeInstanceServer::change3DView(const Change3DViewCommand &command)
+{
+    for (const InformationContainer &container : command.informationVector()) {
+        if (container.name() == InformationName::ShowView)
+            showEditView(container.information().toPoint(), container.secondInformation().toSize());
+        else if (container.name() == InformationName::HideView)
+            hideEditView();
+        else if (container.name() == InformationName::MoveView)
+            moveEditView(container.information().toPoint());
+        else if (container.name() == InformationName::ResizeView)
+            resizeEditView(container.secondInformation().toSize());
+    }
 }
 
 } // namespace QmlDesigner

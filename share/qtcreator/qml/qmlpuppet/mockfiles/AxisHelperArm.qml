@@ -22,48 +22,49 @@
 ** be met: https://www.gnu.org/licenses/gpl-3.0.html.
 **
 ****************************************************************************/
-#include "cameracontrolhelper.h"
 
-namespace QmlDesigner {
-namespace Internal {
+import QtQuick 2.0
+import QtQuick3D 1.0
 
-CameraControlHelper::CameraControlHelper()
-    : QObject()
-{
-    m_inputUpdateTimer.setInterval(16);
-    QObject::connect(&m_inputUpdateTimer, &QTimer::timeout,
-                     this, &CameraControlHelper::handleUpdateTimer);
+Node {
+    id: armRoot
+    property alias posModel: posModel
+    property alias negModel: negModel
+    property View3D view3D
+    property color hoverColor
+    property color color
+    property vector3d camRotPos
+    property vector3d camRotNeg
 
-    m_overlayUpdateTimer.setInterval(16);
-    m_overlayUpdateTimer.setSingleShot(true);
-    QObject::connect(&m_overlayUpdateTimer, &QTimer::timeout,
-                     this, &CameraControlHelper::overlayUpdateNeeded);
-}
+    Model {
+        id: posModel
 
-bool CameraControlHelper::enabled()
-{
-    return m_enabled;
-}
+        property bool hovering: false
+        property vector3d cameraRotation: armRoot.camRotPos
 
-void CameraControlHelper::handleUpdateTimer()
-{
-    emit updateInputs();
-}
+        source: "meshes/axishelper.mesh"
+        materials: DefaultMaterial {
+            id: posMat
+            emissiveColor: posModel.hovering ? armRoot.hoverColor : armRoot.color
+            lighting: DefaultMaterial.NoLighting
+        }
+        pickable: true
+    }
 
-void CameraControlHelper::setEnabled(bool enabled)
-{
-    if (enabled)
-        m_inputUpdateTimer.start();
-    else
-        m_inputUpdateTimer.stop();
-    m_enabled = enabled;
-}
+    Model {
+        id: negModel
 
-void CameraControlHelper::requestOverlayUpdate()
-{
-    if (!m_overlayUpdateTimer.isActive())
-        m_overlayUpdateTimer.start();
-}
+        property bool hovering: false
+        property vector3d cameraRotation: armRoot.camRotNeg
 
-}
+        source: "#Sphere"
+        y: -6
+        scale: Qt.vector3d(0.025, 0.025, 0.025)
+        materials: DefaultMaterial {
+            id: negMat
+            emissiveColor: negModel.hovering ? armRoot.hoverColor : armRoot.color
+            lighting: DefaultMaterial.NoLighting
+        }
+        pickable: true
+    }
 }

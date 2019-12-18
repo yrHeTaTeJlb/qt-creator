@@ -42,44 +42,46 @@ using namespace Utils;
 namespace McuSupport {
 namespace Internal {
 
-static CommandLine flashAndRunCommand(Target *target)
+static FilePath cmakeFilePath(const Target *target)
+{
+    const CMakeProjectManager::CMakeTool *tool =
+            CMakeProjectManager::CMakeKitAspect::cmakeTool(target->kit());
+    return tool->filePath();
+}
+
+static QStringList flashAndRunArgs(const Target *target)
 {
     const QString projectName = target->project()->displayName();
 
-    const CMakeProjectManager::CMakeTool *tool =
-            CMakeProjectManager::CMakeKitAspect::cmakeTool(target->kit());
+    // TODO: Hack! Implement flash target name handling, properly
+    const QString targetName =
+            target->kit()->value(Constants::KIT_MCUTARGET_VENDOR_KEY).toString() == "NXP"
+            ? QString("flash_%1").arg(projectName)
+            : QString("flash_%1_and_bootloader").arg(projectName);
 
-    return CommandLine(tool->filePath(), {
-                           "--build",
-                           ".",
-                           "--target",
-                           QString("flash_%1_and_bootloader").arg(projectName)
-                       });
+    return {"--build", ".", "--target", targetName};
 }
 
-class FlashAndRunConfiguration : public ProjectExplorer::RunConfiguration
+FlashAndRunConfiguration::FlashAndRunConfiguration(Target *target, Core::Id id)
+    : RunConfiguration(target, id)
 {
-public:
-    FlashAndRunConfiguration(Target *target, Core::Id id)
-        : RunConfiguration(target, id)
-    {
-        auto effectiveFlashAndRunCall = addAspect<BaseStringAspect>();
-        effectiveFlashAndRunCall->setLabelText(tr("Effective flash and run call:"));
-        effectiveFlashAndRunCall->setDisplayStyle(BaseStringAspect::TextEditDisplay);
-        effectiveFlashAndRunCall->setReadOnly(true);
+    auto flashAndRunParameters = addAspect<BaseStringAspect>();
+    flashAndRunParameters->setLabelText("Flash and run CMake parameters:");
+    flashAndRunParameters->setDisplayStyle(BaseStringAspect::TextEditDisplay);
+    flashAndRunParameters->setSettingsKey("FlashAndRunConfiguration.Parameters");
 
-        auto updateConfiguration = [target, effectiveFlashAndRunCall] {
-            effectiveFlashAndRunCall->setValue(flashAndRunCommand(target).toUserOutput());
-        };
+    auto updateConfiguration = [target, flashAndRunParameters] {
+        flashAndRunParameters->setValue(flashAndRunArgs(target).join(' '));
+    };
 
-        updateConfiguration();
+    updateConfiguration();
 
-        connect(target->activeBuildConfiguration(), &BuildConfiguration::buildDirectoryChanged,
-                this, updateConfiguration);
-        connect(target->project(), &Project::displayNameChanged,
-                this, updateConfiguration);
-    }
-};
+    connect(target->activeBuildConfiguration(),
+            &BuildConfiguration::buildDirectoryChanged,
+            this,
+            updateConfiguration);
+    connect(target->project(), &Project::displayNameChanged, this, updateConfiguration);
+}
 
 class FlashAndRunWorker : public SimpleTargetRunner
 {
@@ -92,8 +94,11 @@ public:
         : SimpleTargetRunner(runControl)
     {
         setStarter([this, runControl] {
-            ProjectExplorer::Target *target = runControl->target();
-            const CommandLine cmd = flashAndRunCommand(target);
+            const Target *target = runControl->target();
+            const CommandLine cmd(
+                        cmakeFilePath(target),
+                        runControl->runConfiguration()->aspect<BaseStringAspect>()->value(),
+                        CommandLine::Raw);
             Runnable r;
             r.workingDirectory =
                     target->activeBuildConfiguration()->buildDirectory().toUserOutput();
@@ -109,7 +114,7 @@ RunWorkerFactory::WorkerCreator makeFlashAndRunWorker()
     return RunWorkerFactory::make<FlashAndRunWorker>();
 }
 
-EmrunRunConfigurationFactory::EmrunRunConfigurationFactory()
+McuSupportRunConfigurationFactory::McuSupportRunConfigurationFactory()
     : FixedRunConfigurationFactory(FlashAndRunConfiguration::tr("Flash and run"))
 {
     registerRunConfiguration<FlashAndRunConfiguration>(Constants::RUNCONFIGURATION);

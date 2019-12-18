@@ -4,16 +4,16 @@ import qbs.FileInfo
 import "qtc.js" as HelperFunctions
 
 Module {
-    property string qtcreator_display_version: '4.11.0-beta2'
+    property string qtcreator_display_version: '4.11.0'
     property string ide_version_major: '4'
-    property string ide_version_minor: '10'
-    property string ide_version_release: '83'
+    property string ide_version_minor: '11'
+    property string ide_version_release: '0'
     property string qtcreator_version: ide_version_major + '.' + ide_version_minor + '.'
                                        + ide_version_release
 
     property string ide_compat_version_major: '4'
-    property string ide_compat_version_minor: '10'
-    property string ide_compat_version_release: '83'
+    property string ide_compat_version_minor: '11'
+    property string ide_compat_version_release: '0'
     property string qtcreator_compat_version: ide_compat_version_major + '.'
             + ide_compat_version_minor + '.' + ide_compat_version_release
 
@@ -48,7 +48,7 @@ Module {
             ? ide_app_target + ".app/Contents/Resources"
             : "share/qtcreator"
     property string ide_libexec_path: qbs.targetOS.contains("macos")
-            ? ide_data_path : qbs.targetOS.contains("windows")
+            ? ide_data_path + "/libexec" : qbs.targetOS.contains("windows")
             ? ide_app_path
             : "libexec/qtcreator"
     property string ide_bin_path: qbs.targetOS.contains("macos")

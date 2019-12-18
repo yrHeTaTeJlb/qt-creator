@@ -25,6 +25,7 @@
 
 import QtQuick 2.0
 import QtQuick3D 1.0
+import QtGraphicalEffects 1.12
 
 Node {
     id: iconGizmo
@@ -32,50 +33,71 @@ Node {
     property View3D view3D
     property bool highlightOnHover: true
     property Node targetNode: null
+    property var selectedNodes: null
+    readonly property bool selected: {
+        for (var i = 0; i < selectedNodes.length; ++i) {
+            if (selectedNodes[i] === targetNode)
+                return true;
+        }
+        return false;
+    }
 
-    property alias gizmoModel: gizmoModel
     property alias iconSource: iconImage.source
+    property alias overlayColor: colorOverlay.color
 
     signal positionCommit()
-    signal selected(Node node)
+    signal clicked(Node node, bool multi)
 
     position: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     rotation: targetNode ? targetNode.sceneRotation : Qt.vector3d(0, 0, 0)
     visible: targetNode ? targetNode.visible : false
 
-    Model {
-        id: gizmoModel
-        scale: Qt.vector3d(0.05, 0.05, 0.05)
-        visible: iconGizmo.visible
-    }
     Overlay2D {
-        id: gizmoLabel
-        targetNode: gizmoModel
+        id: iconOverlay
+        targetNode: iconGizmo
         targetView: view3D
-        offsetX: 0
-        offsetY: 0
         visible: iconGizmo.visible && !isBehindCamera
         parent: view3D
 
         Rectangle {
-            width: 24
-            height: 24
+            id: iconRect
+            width: iconImage.width
+            height: iconImage.height
             x: -width / 2
-            y: -height
+            y: -height / 2
             color: "transparent"
             border.color: "#7777ff"
-            border.width: highlightOnHover && iconMouseArea.containsMouse ? 2 : 0
+            border.width: !iconGizmo.selected
+                          && iconGizmo.highlightOnHover && iconMouseArea.containsMouse ? 2 : 0
             radius: 5
+            opacity: iconGizmo.selected ? 0.2 : 1
             Image {
                 id: iconImage
-                anchors.fill: parent
+                fillMode: Image.Pad
                 MouseArea {
                     id: iconMouseArea
                     anchors.fill: parent
-                    onClicked: selected(targetNode)
-                    hoverEnabled: highlightOnHover
+                    onPressed: {
+                        if (iconGizmo.selected && !(mouse.modifiers & Qt.ControlModifier)) {
+                            mouse.accepted = false;
+                        }
+                    }
+
+                    onClicked: iconGizmo.clicked(iconGizmo.targetNode,
+                                                 mouse.modifiers & Qt.ControlModifier)
+                    hoverEnabled: iconGizmo.highlightOnHover && !iconGizmo.selected
+                    acceptedButtons: Qt.LeftButton
                 }
             }
+            ColorOverlay {
+                id: colorOverlay
+                anchors.fill: parent
+                cached: true
+                source: iconImage
+                color: "transparent"
+                opacity: 0.6
+            }
+
         }
     }
 }

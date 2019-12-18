@@ -31,6 +31,7 @@
 #include "pythonrunconfiguration.h"
 #include "pythonsettings.h"
 
+#include <coreplugin/editormanager/editormanager.h>
 #include <coreplugin/infobar.h>
 #include <coreplugin/progressmanager/progressmanager.h>
 
@@ -94,6 +95,11 @@ static QString pythonName(const FilePath &pythonPath)
 
 FilePath getPylsModulePath(CommandLine pylsCommand)
 {
+    static QMap<FilePath, FilePath> cache;
+    const FilePath &modulePath = cache.value(pylsCommand.executable());
+    if (!modulePath.isEmpty())
+        return modulePath;
+
     pylsCommand.addArg("-h");
     SynchronousProcess pythonProcess;
     pythonProcess.setEnvironment(pythonProcess.environment() + QStringList("PYTHONVERBOSE=x"));
@@ -111,8 +117,11 @@ FilePath getPylsModulePath(CommandLine pylsCommand)
     const QString &output = response.allOutput();
     for (auto regex : {regexCached, regexNotCached}) {
         QRegularExpressionMatch result = regex.match(output);
-        if (result.hasMatch())
-            return FilePath::fromUserInput(result.captured(1));
+        if (result.hasMatch()) {
+            const FilePath &modulePath = FilePath::fromUserInput(result.captured(1));
+            cache[pylsCommand.executable()] = modulePath;
+            return modulePath;
+        }
     }
     return {};
 }
@@ -146,7 +155,7 @@ static PythonLanguageServerState checkPythonLanguageServer(const FilePath &pytho
             }
         }
 
-        return {PythonLanguageServerState::AlreadyInstalled, getPylsModulePath(pythonLShelpCommand)};
+        return {PythonLanguageServerState::AlreadyInstalled, modulePath};
     }
 
     const CommandLine pythonPipVersionCommand(python, {"-m", "pip", "-V"});
@@ -438,7 +447,16 @@ void PyLSConfigureAssistant::resetEditorInfoBar(TextEditor::TextDocument *docume
 
 PyLSConfigureAssistant::PyLSConfigureAssistant(QObject *parent)
     : QObject(parent)
-{}
+{
+    Core::EditorManager::instance();
+    connect(Core::EditorManager::instance(),
+            &Core::EditorManager::documentClosed,
+            this,
+            [this](Core::IDocument *document) {
+                if (auto textDocument = qobject_cast<TextEditor::TextDocument *>(document))
+                    resetEditorInfoBar(textDocument);
+            });
+}
 
 } // namespace Internal
 } // namespace Python

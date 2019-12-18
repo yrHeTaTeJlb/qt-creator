@@ -2791,9 +2791,7 @@ bool ProjectExplorerPlugin::coreAboutToClose()
         if (box.clickedButton() != closeAnyway)
             return false;
     }
-    if (!dd->m_outputPane.aboutToClose())
-        return false;
-    return true;
+    return dd->m_outputPane.aboutToClose();
 }
 
 static bool hasDeploySettings(Project *pro)
@@ -3903,6 +3901,12 @@ QString ProjectExplorerPlugin::defaultBuildDirectoryTemplate()
 void ProjectExplorerPlugin::updateActions()
 {
     dd->updateActions();
+}
+
+void ProjectExplorerPlugin::activateProjectPanel(Core::Id panelId)
+{
+    Core::ModeManager::activateMode(Constants::MODE_SESSION);
+    dd->m_proWindow->activateProjectPanel(panelId);
 }
 
 QList<QPair<QString, QString> > ProjectExplorerPlugin::recentProjects()

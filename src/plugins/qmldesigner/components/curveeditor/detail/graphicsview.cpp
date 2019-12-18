@@ -54,6 +54,7 @@ GraphicsView::GraphicsView(CurveEditorModel *model, QWidget *parent)
     setScene(&m_scene);
     setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     setResizeAnchor(QGraphicsView::NoAnchor);
+    setRenderHint(QPainter::Antialiasing, true);
     setTransformationAnchor(QGraphicsView::NoAnchor);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
@@ -553,7 +554,7 @@ double GraphicsView::timeLabelInterval(QPainter *painter, double maxTime)
     double tickDistance = mapTimeToX(deltaTime);
 
     while (true) {
-        if (tickDistance == 0 && deltaTime > maxTime)
+        if (tickDistance == 0 && deltaTime >= maxTime)
             return maxTime;
 
         if (tickDistance > minTextSpacing)

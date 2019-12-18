@@ -53,6 +53,8 @@ you can check out from the public Git repository. For example:
 ### Python
 
 * Simplified registration of language server
+* Added python settings to configure multiple python interpreters
+* Simplified switching python interpreters for python projects
 
 ## Help
 
@@ -112,6 +114,10 @@ you can check out from the public Git repository. For example:
 * Added option to remove directories directly from project tree (QTCREATORBUG-16575)
 * Added support for Framework paths (QTCREATORBUG-20099)
 
+### Compilation Database
+
+* Fixed issue with `/imsvc` compiler option (QTCREATORBUG-23146)
+
 ## Debugging
 
 ### CDB
@@ -131,6 +137,7 @@ you can check out from the public Git repository. For example:
 * Changed to use separate `clang-tidy` executable
 * Separated diagnostic configuration settings for code model
   (`C++` > `Code Model`) and analyzer (`Analyzer` > `Clang Tools`)
+* Fixed invocation of `clazy` with latest `clazy` versions
 
 ## Qt Widget Designer
 
@@ -174,6 +181,8 @@ you can check out from the public Git repository. For example:
 
 * Removed auto-detection of GCC toolchains
 * Fixed closing of terminal window after application finishes (QTCREATORBUG-15138)
+* Fixed execution of `qtc-askpass` (QTCREATORBUG-23120)
+* Fixed environment when opening terminal with `zsh` (QTCREATORBUG-21712)
 
 ### Android
 

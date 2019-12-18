@@ -67,6 +67,7 @@
 #include <tokencommand.h>
 #include <removesharedmemorycommand.h>
 #include <changeselectioncommand.h>
+#include <drop3dlibraryitemcommand.h>
 
 #include <QDebug>
 #include <QQmlEngine>
@@ -329,6 +330,10 @@ void NodeInstanceServer::clearScene(const ClearSceneCommand &/*command*/)
     m_rootNodeInstance.makeInvalid();
     m_changedPropertyList.clear();
     m_fileUrl.clear();
+}
+
+void NodeInstanceServer::change3DView(const Change3DViewCommand &/*command*/)
+{
 }
 
 void NodeInstanceServer::changeSelection(const ChangeSelectionCommand & /*command*/)
@@ -1169,6 +1174,11 @@ ChangeSelectionCommand NodeInstanceServer::createChangeSelectionCommand(const QL
     }
 
     return ChangeSelectionCommand(idVector);
+}
+
+Drop3DLibraryItemCommand NodeInstanceServer::createDrop3DLibraryItemCommand(const QByteArray &itemData)
+{
+    return Drop3DLibraryItemCommand(itemData);
 }
 
 ValuesChangedCommand NodeInstanceServer::createValuesChangedCommand(const QVector<InstancePropertyPair> &propertyList) const

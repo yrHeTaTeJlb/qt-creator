@@ -218,7 +218,21 @@ QProcess *PuppetCreator::puppetProcess(const QString &puppetPath,
         QObject::connect(puppetProcess, SIGNAL(readyRead()), handlerObject, outputSlot);
     }
     puppetProcess->setWorkingDirectory(workingDirectory);
-    puppetProcess->start(puppetPath, {socketToken, puppetMode, "-graphicssystem raster"});
+
+    bool forceFreeType = false;
+    if (Utils::HostOsInfo::isWindowsHost() && m_currentProject && m_currentProject->activeTarget()) {
+        const QVariant customData = m_currentProject->activeTarget()
+                                        ->additionalData("CustomForceFreeType");
+
+        if (customData.isValid())
+            forceFreeType = customData.toBool();
+    }
+
+    QString forceFreeTypeOption;
+    if (forceFreeType)
+        forceFreeTypeOption = "-platform windows:fontengine=freetype";
+
+    puppetProcess->start(puppetPath, {socketToken, puppetMode, "-graphicssystem raster", forceFreeTypeOption });
 
 #ifndef QMLDESIGNER_TEST
     QString debugPuppet = m_designerSettings.value(DesignerSettingsKey::
@@ -460,8 +474,8 @@ QProcessEnvironment PuppetCreator::processEnvironment() const
         environment.set("QMLDESIGNER_RC_PATHS", m_qrcMapping);
     }
 
-    AbstractView *view = nullptr;
 #ifndef QMLDESIGNER_TEST
+    AbstractView *view = nullptr;
     view = QmlDesignerPlugin::instance()->viewManager().nodeInstanceView();
     view->emitCustomNotification("PuppetStatus", {}, {QVariant(m_qrcMapping)});
 

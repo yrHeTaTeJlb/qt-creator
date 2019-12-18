@@ -45,6 +45,7 @@ class CreateSceneCommand;
 class CreateInstancesCommand;
 class ClearSceneCommand;
 class ReparentInstancesCommand;
+class Change3DViewCommand;
 class ChangeFileUrlCommand;
 class ChangeValuesCommand;
 class ChangeAuxiliaryCommand;
@@ -57,6 +58,7 @@ class ChangeStateCommand;
 class ChangeNodeSourceCommand;
 class EndPuppetCommand;
 class ChangeSelectionCommand;
+class Drop3DLibraryItemCommand;
 
 class NodeInstanceClientProxy : public QObject, public NodeInstanceClientInterface
 {
@@ -76,6 +78,7 @@ public:
     void debugOutput(const DebugOutputCommand &command) override;
     void puppetAlive(const PuppetAliveCommand &command);
     void selectionChanged(const ChangeSelectionCommand &command) override;
+    void library3DItemDropped(const Drop3DLibraryItemCommand &command) override;
 
     void flush() override;
     void synchronizeWithClientProcess() override;
@@ -93,6 +96,7 @@ protected:
     void changeFileUrl(const ChangeFileUrlCommand &command);
     void createScene(const CreateSceneCommand &command);
     void clearScene(const ClearSceneCommand &command);
+    void change3DView(const Change3DViewCommand &command);
     void removeInstances(const RemoveInstancesCommand &command);
     void removeProperties(const RemovePropertiesCommand &command);
     void changePropertyBindings(const ChangeBindingsCommand &command);

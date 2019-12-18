@@ -25,56 +25,135 @@
 
 import QtQuick 2.0
 import QtQuick3D 1.0
+import MouseArea3D 1.0
 
 Node {
-    id: arrows
+    id: moveGizmo
 
     property View3D view3D
     property bool highlightOnHover: false
     property Node targetNode: null
-    readonly property bool isDragging: arrowX.isDragging || arrowY.isDragging || arrowZ.isDragging
-
-    scale: Qt.vector3d(5, 5, 5)
+    property bool globalOrientation: true
+    readonly property bool dragging: arrowX.dragging || arrowY.dragging || arrowZ.dragging
+                                     || planeX.dragging || planeY.dragging || planeZ.dragging
+                                     || centerBall.dragging
+    position: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
+    orientation: targetNode ? targetNode.orientation : Node.LeftHanded
 
     signal positionCommit()
     signal positionMove()
 
-    Arrow {
-        id: arrowX
-        objectName: "Arrow X"
-        rotation: Qt.vector3d(0, 0, -90)
-        targetNode: arrows.targetNode
-        color: highlightOnHover && hovering ? Qt.lighter(Qt.rgba(1, 0, 0, 1))
-                                            : Qt.rgba(1, 0, 0, 1)
-        view3D: arrows.view3D
+    Node {
+        rotation: globalOrientation || !moveGizmo.targetNode ? Qt.vector3d(0, 0, 0)
+                                                             : moveGizmo.targetNode.sceneRotation
+        rotationOrder: moveGizmo.targetNode ? moveGizmo.targetNode.rotationOrder : Node.YXZ
+        orientation: moveGizmo.orientation
 
-        onPositionCommit: arrows.positionCommit()
-        onPositionMove: arrows.positionMove()
+        Arrow {
+            id: arrowX
+            rotation: Qt.vector3d(0, 0, -90)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(1, 0, 0, 1))
+                                                              : Qt.rgba(1, 0, 0, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
+
+        Arrow {
+            id: arrowY
+            rotation: Qt.vector3d(0, 0, 0)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(0, 0.6, 0, 1))
+                                                              : Qt.rgba(0, 0.6, 0, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
+
+        Arrow {
+            id: arrowZ
+            rotation: Qt.vector3d(90, 0, 0)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(0, 0, 1, 1))
+                                                              : Qt.rgba(0, 0, 1, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
+
+        PlanarMoveHandle {
+            id: planeX
+
+            y: 10
+            z: 10
+
+            rotation: Qt.vector3d(0, 90, 0)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(1, 0, 0, 1))
+                                                              : Qt.rgba(1, 0, 0, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
+
+        PlanarMoveHandle {
+            id: planeY
+
+            x: 10
+            z: 10
+
+            rotation: Qt.vector3d(90, 0, 0)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(0, 0.6, 0, 1))
+                                                              : Qt.rgba(0, 0.6, 0, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
+
+        PlanarMoveHandle {
+            id: planeZ
+
+            x: 10
+            y: 10
+
+            rotation: Qt.vector3d(0, 0, 0)
+            targetNode: moveGizmo.targetNode
+            color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(0, 0, 1, 1))
+                                                              : Qt.rgba(0, 0, 1, 1)
+            view3D: moveGizmo.view3D
+            active: moveGizmo.visible
+
+            onPositionCommit: moveGizmo.positionCommit()
+            onPositionMove: moveGizmo.positionMove()
+        }
     }
 
-    Arrow {
-        id: arrowY
-        objectName: "Arrow Y"
-        rotation: Qt.vector3d(0, 0, 0)
-        targetNode: arrows.targetNode
-        color: highlightOnHover && hovering ? Qt.lighter(Qt.rgba(0, 0, 1, 1))
-                                            : Qt.rgba(0, 0, 1, 1)
-        view3D: arrows.view3D
+    PlanarMoveHandle {
+        id: centerBall
 
-        onPositionCommit: arrows.positionCommit()
-        onPositionMove: arrows.positionMove()
-    }
+        source: "#Sphere"
+        color: highlightOnHover && (hovering || dragging) ? Qt.lighter(Qt.rgba(0.5, 0.5, 0.5, 1))
+                                                          : Qt.rgba(0.5, 0.5, 0.5, 1)
+        rotation: view3D.camera.rotation
+        priority: 1
+        targetNode: moveGizmo.targetNode
 
-    Arrow {
-        id: arrowZ
-        objectName: "Arrow Z"
-        rotation: Qt.vector3d(90, 0, 0)
-        targetNode: arrows.targetNode
-        color: highlightOnHover && hovering ? Qt.lighter(Qt.rgba(0, 0.6, 0, 1))
-                                            : Qt.rgba(0, 0.6, 0, 1)
-        view3D: arrows.view3D
+        view3D: moveGizmo.view3D
+        active: moveGizmo.visible
 
-        onPositionCommit: arrows.positionCommit()
-        onPositionMove: arrows.positionMove()
+        onPositionCommit: moveGizmo.positionCommit()
+        onPositionMove: moveGizmo.positionMove()
     }
 }
